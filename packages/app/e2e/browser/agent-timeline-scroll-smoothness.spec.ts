@@ -2,6 +2,7 @@ import { test } from "../support/fixtures";
 import { expect } from "@playwright/test";
 import {
   findScrollJumps,
+  expectImageSpaceReserved,
   type ScrollFrame,
   observeTimelinePages,
   openOnlyTimelineTail,
@@ -11,7 +12,7 @@ import {
   withVariedTimeline,
 } from "../support/helpers/timeline-scroll-smoothness";
 
-test("scroll detector distinguishes entered image growth from a simultaneous viewport jump", () => {
+test("scroll detector bounds entered image growth and detects simultaneous viewport jumps", () => {
   const before: ScrollFrame = {
     at: 1000,
     scrollTop: 1000,
@@ -41,7 +42,19 @@ test("scroll detector distinguishes entered image growth from a simultaneous vie
       { id: "reading", top: 1100, height: 100 },
     ],
   };
-  expect(findScrollJumps([before, after])).toEqual([]);
+  expect(findScrollJumps([before, after])).toHaveLength(1);
+  expect(
+    findScrollJumps([
+      before,
+      {
+        ...after,
+        rows: [
+          { id: "image", top: -50, height: 174 },
+          { id: "reading", top: 124, height: 100 },
+        ],
+      },
+    ]),
+  ).toEqual([]);
   expect(
     findScrollJumps([
       { ...before, scrollTop: 200 },
@@ -51,7 +64,7 @@ test("scroll detector distinguishes entered image growth from a simultaneous vie
         rows: after.rows.map((row) => ({ ...row, top: row.top + 100 })),
       },
     ]),
-  ).toEqual([]);
+  ).toHaveLength(1);
   expect(
     findScrollJumps([
       before,
@@ -79,3 +92,7 @@ for (const cadence of scrollCadences) {
     });
   });
 }
+
+test("reserves image space before its response arrives", async ({ page }, testInfo) => {
+  await expectImageSpaceReserved(page, testInfo);
+});
