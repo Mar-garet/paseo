@@ -190,6 +190,52 @@ index 1234567..abcdefg 100644
 `;
 
 describe("parseDiff", () => {
+  it("keeps deleted SQL comments inside a hunk", () => {
+    const files = parseDiff(
+      [
+        "diff --git a/query.sql b/query.sql",
+        "index 4f26a2a..e181f6d 100644",
+        "--- a/query.sql",
+        "+++ b/query.sql",
+        "@@ -1,2 +1,2 @@",
+        "--- old comment",
+        "+-- new comment",
+        " SELECT 1;",
+        "",
+      ].join("\n"),
+    );
+
+    expect(files).toEqual([
+      {
+        path: "query.sql",
+        isNew: false,
+        isDeleted: false,
+        additions: 1,
+        deletions: 1,
+        hunks: [
+          {
+            oldStart: 1,
+            oldCount: 2,
+            newStart: 1,
+            newCount: 2,
+            lines: [
+              { type: "header", content: "@@ -1,2 +1,2 @@" },
+              { type: "remove", content: "-- old comment" },
+              { type: "add", content: "-- new comment" },
+              { type: "context", content: "SELECT 1;" },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(reconstructOldFile(files[0].hunks)).toEqual(
+      new Map([
+        [1, "-- old comment"],
+        [2, "SELECT 1;"],
+      ]),
+    );
+  });
+
   it("parses a simple diff with one hunk", () => {
     const files = parseDiff(SIMPLE_DIFF);
 
