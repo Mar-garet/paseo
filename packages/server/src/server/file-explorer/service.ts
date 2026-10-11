@@ -726,6 +726,8 @@ export async function renameExplorerEntry({
       repository.exitCode === 0
         ? await runGitCommand(["ls-files", "-z", "--", `:(literal)${sourcePath}`], {
             cwd: realRoot,
+            // Inherited literal mode disables the :(literal) pathspec magic.
+            envOverlay: { GIT_LITERAL_PATHSPECS: undefined },
           })
         : null;
     if (tracked?.stdout) {
