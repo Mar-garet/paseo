@@ -724,7 +724,7 @@ export async function renameExplorerEntry({
     });
     const tracked =
       repository.exitCode === 0
-        ? await runGitCommand(["--literal-pathspecs", "ls-files", "-z", "--", sourcePath], {
+        ? await runGitCommand(["ls-files", "-z", "--", `:(literal)${sourcePath}`], {
             cwd: realRoot,
           })
         : null;

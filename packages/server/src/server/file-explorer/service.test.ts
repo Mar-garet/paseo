@@ -13,7 +13,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { runGitCommand } from "../../utils/run-git-command.js";
+import { runGitCommand, snapshotGitCommandRuntimeMetrics } from "../../utils/run-git-command.js";
 import {
   createExplorerEntry,
   deleteExplorerEntry,
@@ -525,6 +525,7 @@ describe("file explorer service", () => {
       await runGitCommand(["add", "i.tsx"], { cwd: root });
       await writeFile(path.join(root, "[id].tsx"), "untracked\n", "utf8");
 
+      snapshotGitCommandRuntimeMetrics();
       const result = await renameExplorerEntry({
         root,
         relativePath: "[id].tsx",
@@ -532,6 +533,10 @@ describe("file explorer service", () => {
       });
 
       expect(result).toEqual({ status: "ok", path: "renamed.tsx" });
+      expect(snapshotGitCommandRuntimeMetrics().operationsTop).toEqual([
+        ["ls-files", 1],
+        ["rev-parse", 1],
+      ]);
       expect(await readFile(path.join(root, "renamed.tsx"), "utf8")).toBe("untracked\n");
       await expect(stat(path.join(root, "[id].tsx"))).rejects.toMatchObject({ code: "ENOENT" });
       expect(await readFile(path.join(root, "i.tsx"), "utf8")).toBe("tracked\n");
