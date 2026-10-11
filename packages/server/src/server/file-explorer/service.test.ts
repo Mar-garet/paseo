@@ -12,7 +12,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runGitCommand, snapshotGitCommandRuntimeMetrics } from "../../utils/run-git-command.js";
 import {
   createExplorerEntry,
@@ -593,6 +593,52 @@ describe("file explorer service", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    {
+      sourcePath: "[id].tsx",
+      sourceFile: "[id].tsx",
+      targetName: "renamed.tsx",
+      targetFile: "renamed.tsx",
+    },
+    {
+      sourcePath: "[id]",
+      sourceFile: "[id]/route.tsx",
+      targetName: "route",
+      targetFile: "route/route.tsx",
+    },
+  ])(
+    "keeps tracked renames in the index with inherited literal pathspecs ($sourcePath)",
+    async ({ sourcePath, sourceFile, targetName, targetFile }) => {
+      const root = await createTempDir("paseo-inherited-literal-rename-");
+      try {
+        vi.stubEnv("GIT_LITERAL_PATHSPECS", "1");
+        await runGitCommand(["init"], { cwd: root });
+        await mkdir(path.dirname(path.join(root, sourceFile)), { recursive: true });
+        await writeFile(path.join(root, sourceFile), "tracked route\n", "utf8");
+        await writeFile(path.join(root, "i.tsx"), "tracked sibling\n", "utf8");
+        await runGitCommand(["add", "."], { cwd: root });
+
+        const result = await renameExplorerEntry({
+          root,
+          relativePath: sourcePath,
+          name: targetName,
+        });
+
+        expect(result).toEqual({ status: "ok", path: targetName });
+        expect(await readFile(path.join(root, targetFile), "utf8")).toBe("tracked route\n");
+        await expect(stat(path.join(root, sourcePath))).rejects.toMatchObject({ code: "ENOENT" });
+        expect(await readFile(path.join(root, "i.tsx"), "utf8")).toBe("tracked sibling\n");
+        expect((await runGitCommand(["ls-files", "-z"], { cwd: root })).stdout).toBe(
+          `i.tsx\0${targetFile}\0`,
+        );
+        expect(process.env.GIT_LITERAL_PATHSPECS).toBe("1");
+      } finally {
+        vi.unstubAllEnvs();
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("supports case-only renames for tracked and untracked files", async () => {
     const root = await createTempDir("paseo-entry-case-rename-");
