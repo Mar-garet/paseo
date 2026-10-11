@@ -7,9 +7,71 @@ import { getCheckoutDiff, getCommitFileDiff } from "./checkout-git.js";
 
 const repos: string[] = [];
 
+const SQL_COMMENT_DIFF = {
+  path: "query.sql",
+  isNew: false,
+  isDeleted: false,
+  additions: 1,
+  deletions: 1,
+  hunks: [
+    {
+      oldStart: 1,
+      oldCount: 2,
+      newStart: 1,
+      newCount: 2,
+      lines: [
+        { type: "header", content: "@@ -1,2 +1,2 @@" },
+        { type: "remove", content: "-- old comment" },
+        { type: "add", content: "-- new comment" },
+        { type: "context", content: "SELECT 1;" },
+      ],
+    },
+  ],
+};
+
 afterEach(() => {
   for (const repo of repos.splice(0)) rmSync(repo, { recursive: true, force: true });
 });
+
+it("preserves SQL comment removals in uncommitted diffs from Git", async () => {
+  const cwd = createSqlCommentRepo();
+  const result = await getCheckoutDiff(cwd, { mode: "uncommitted", includeStructured: true });
+
+  expect(result.structured).toHaveLength(1);
+  expect(result.structured?.[0]).toMatchObject({ ...SQL_COMMENT_DIFF, status: "ok" });
+});
+
+it("preserves SQL comment removals in base and individual commit diffs from Git", async () => {
+  const cwd = createSqlCommentRepo();
+  git(cwd, "checkout", "-b", "feature");
+  git(cwd, "add", ".");
+  git(cwd, "-c", "commit.gpgsign=false", "commit", "-m", "edit SQL comment");
+
+  const result = await getCheckoutDiff(cwd, {
+    mode: "base",
+    baseRef: "main",
+    includeStructured: true,
+  });
+  expect(result.structured).toHaveLength(1);
+  expect(result.structured?.[0]).toMatchObject({ ...SQL_COMMENT_DIFF, status: "ok" });
+  expect(
+    await getCommitFileDiff({
+      cwd,
+      sha: git(cwd, "rev-parse", "HEAD").trim(),
+      path: "query.sql",
+    }),
+  ).toMatchObject(SQL_COMMENT_DIFF);
+});
+
+function createSqlCommentRepo(): string {
+  const cwd = createChangedRepo("color.diff=auto");
+  writeFileSync(join(cwd, "file.txt"), "before\n");
+  writeFileSync(join(cwd, "query.sql"), "-- old comment\nSELECT 1;\n");
+  git(cwd, "add", ".");
+  git(cwd, "-c", "commit.gpgsign=false", "commit", "-m", "add SQL query");
+  writeFileSync(join(cwd, "query.sql"), "-- new comment\nSELECT 1;\n");
+  return cwd;
+}
 
 it.each(["diff.mnemonicPrefix=true", "color.diff=always", "diff.noprefix=true"])(
   "preserves batched paths, spaces and literal prefix directories with %s",
