@@ -161,31 +161,36 @@ afterEach(async () => {
   await ctx.cleanup();
 }, 60000);
 
+interface GitCommandOptions {
+  cwd: string;
+  args: string[];
+}
+
 async function mergeFeatureIntoBaseWorktree(baseName: string): Promise<void> {
   const directory = realpathSync(tmpCwd());
   const base = path.join(directory, baseName);
   const feature = path.join(directory, "feature");
-  function git(cwd: string, args: string[]): string {
+  function git({ cwd, args }: GitCommandOptions): string {
     return execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" });
   }
   try {
     mkdirSync(base);
-    git(base, ["init", "-b", "main"]);
-    git(base, ["config", "user.name", "Paseo Test"]);
-    git(base, ["config", "user.email", "test@paseo.local"]);
-    git(base, ["config", "commit.gpgsign", "false"]);
-    git(base, ["commit", "--allow-empty", "-m", "base"]);
-    git(base, ["worktree", "add", "-b", "feature", feature]);
+    git({ cwd: base, args: ["init", "-b", "main"] });
+    git({ cwd: base, args: ["config", "user.name", "Paseo Test"] });
+    git({ cwd: base, args: ["config", "user.email", "test@paseo.local"] });
+    git({ cwd: base, args: ["config", "commit.gpgsign", "false"] });
+    git({ cwd: base, args: ["commit", "--allow-empty", "-m", "base"] });
+    git({ cwd: base, args: ["worktree", "add", "-b", "feature", feature] });
     writeFileSync(path.join(feature, "feature.txt"), "feature payload\n");
-    git(feature, ["add", "feature.txt"]);
-    git(feature, ["commit", "-m", "feature"]);
-    const featureCommit = git(feature, ["rev-parse", "HEAD"]).trim();
+    git({ cwd: feature, args: ["add", "feature.txt"] });
+    git({ cwd: feature, args: ["commit", "-m", "feature"] });
+    const featureCommit = git({ cwd: feature, args: ["rev-parse", "HEAD"] }).trim();
 
     const merged = await ctx.client.checkoutMerge(feature, { baseRef: "main" });
     expect(merged).toMatchObject({ success: true, error: null });
-    expect(git(base, ["rev-parse", "HEAD"]).trim()).toBe(featureCommit);
+    expect(git({ cwd: base, args: ["rev-parse", "HEAD"] }).trim()).toBe(featureCommit);
     expect(readFileSync(path.join(base, "feature.txt"), "utf8")).toBe("feature payload\n");
-    expect(git(feature, ["symbolic-ref", "--short", "HEAD"]).trim()).toBe("feature");
+    expect(git({ cwd: feature, args: ["symbolic-ref", "--short", "HEAD"] }).trim()).toBe("feature");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
