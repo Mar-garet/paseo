@@ -189,7 +189,9 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   await page.getByTestId("files-new-file").click();
   await nameInput.fill("README.md");
   await nameInput.press("Enter");
-  await expect(page.getByText('"README.md" already exists', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("alert").getByText('"README.md" already exists', { exact: true }),
+  ).toBeVisible();
 
   const emptyArea = page.getByTestId("files-empty-area");
   await expect(emptyArea).toBeVisible();
@@ -328,7 +330,9 @@ test("creates, renames, copies, and deletes entries through the file explorer", 
   await page.getByText("Rename", { exact: true }).click();
   await nameInput.fill("README.md");
   await nameInput.press("Enter");
-  await expect(page.getByText('"README.md" already exists', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("alert").getByText('"README.md" already exists', { exact: true }),
+  ).toBeVisible();
   await expect(entry("created.txt")).toBeVisible();
 
   await entry("created.txt").click({ button: "right" });
