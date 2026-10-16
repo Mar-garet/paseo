@@ -121,12 +121,26 @@ test("keeps file explorer actions in a workspace whose path ends in a space", as
   test.skip(process.platform === "win32", "Win32 strips trailing spaces from directory names");
   const plain = path.join(workspace.repoPath, "nested");
   const spaced = `${plain} `;
+  const plainImage = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAIAAAA8r+mnAAAAEUlEQVR4nGO4o6aGFTFQTwIAUY0lAVfe4GsAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const spacedImage = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAIAAAA8r+mnAAAAEUlEQVR4nGMQW+yFFTFQTwIATP4gYe26Fl8AAAAASUVORK5CYII=",
+    "base64",
+  );
   await mkdir(plain);
   await mkdir(spaced);
   await writeFile(path.join(plain, "shared.txt"), "plain workspace\n");
   await writeFile(path.join(plain, "plain-only.txt"), "plain\n");
   await writeFile(path.join(spaced, "shared.txt"), "spaced workspace\n");
   await writeFile(path.join(spaced, "space-only.txt"), "space\n");
+  await writeFile(path.join(plain, "image.png"), plainImage);
+  await writeFile(path.join(spaced, "image.png"), spacedImage);
+  await writeFile(
+    path.join(spaced, "README.md"),
+    "# Spaced workspace image\n\n![Workspace image](./image.png)\n",
+  );
   const created = await workspace.client.createWorkspace({
     source: { kind: "directory", path: spaced, projectId: workspace.projectId },
     title: "Trailing-space workspace",
@@ -159,6 +173,20 @@ test("keeps file explorer actions in a workspace whose path ends in a space", as
   await expect(readFile(path.join(plain, "created.txt"), "utf8")).rejects.toThrow(/ENOENT/);
   expect(await readFile(path.join(plain, "shared.txt"), "utf8")).toBe("plain workspace\n");
   await page.screenshot({ path: testInfo.outputPath("trailing-space-workspace.png") });
+
+  await openFileFromExplorer(page, "README.md");
+  await expect(
+    page.getByTestId("markdown-preview-frame").getByText("Spaced workspace image", { exact: true }),
+  ).toBeVisible();
+  const image = page.getByRole("img", { name: "Workspace image", exact: true }).locator("img");
+  await expect(image).toBeVisible();
+  await expect(image).toHaveJSProperty("naturalWidth", 8);
+  await page.screenshot({ path: testInfo.outputPath("markdown-workspace-image.png") });
+  const renderedImage = await image.evaluate(async (element: HTMLImageElement) => {
+    const response = await fetch(element.currentSrc);
+    return Array.from(new Uint8Array(await response.arrayBuffer()));
+  });
+  expect(Buffer.from(renderedImage)).toEqual(spacedImage);
 });
 
 test("creates, renames, copies, and deletes entries through the file explorer", async ({
