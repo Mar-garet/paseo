@@ -108,6 +108,26 @@ describe("schedule cron cadence", () => {
     ).toThrow("Unable to compute next run time for cron expression: 0 0 30 2 *");
   });
 
+  test.each(["*", "*/2"])("rejects impossible month lists with weekday %s", (weekday) => {
+    const expression = `0 0 31 2,4,6,9,11 ${weekday}`;
+
+    expect(() =>
+      computeNextRunAt(
+        { type: "cron", expression, timezone: "America/New_York" },
+        new Date("2026-10-17T00:00:00.000Z"),
+      ),
+    ).toThrow(`Unable to compute next run time for cron expression: ${expression}`);
+  });
+
+  test("keeps month lists that include a valid selected date", () => {
+    const next = computeNextRunAt(
+      { type: "cron", expression: "0 0 31 2,4,6,9,11,12 *", timezone: "America/New_York" },
+      new Date("2026-10-17T00:00:00.000Z"),
+    );
+
+    expect(next.toISOString()).toBe("2026-12-31T05:00:00.000Z");
+  });
+
   test("rejects invalid cron expressions", () => {
     expect(() => validateScheduleCadence({ type: "cron", expression: "not-a-valid-cron" })).toThrow(
       "Cron expressions must have 5 fields",

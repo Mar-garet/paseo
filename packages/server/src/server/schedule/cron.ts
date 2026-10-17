@@ -97,6 +97,23 @@ export function computeNextRunAt(cadence: ScheduleCadence, after: Date): Date {
 
   const cron = parseCronExpression(cadence.expression);
   const readDateParts = createCronDatePartsReader(cadence.timezone);
+  const weekdaySource = cadence.expression.trim().split(/\s+/)[4];
+  // Use a leap year so February 29 remains possible. Leave restricted weekdays
+  // to the day-field matching below.
+  if (weekdaySource.startsWith("*")) {
+    const months = Array.from({ length: 12 }, (_, index) => index + 1);
+    const hasPossibleDate = months.some((month) => {
+      if (!cron.month.matches(month)) {
+        return false;
+      }
+      const maxDay = new Date(Date.UTC(2000, month, 0)).getUTCDate();
+      const days = Array.from({ length: maxDay }, (_, index) => index + 1);
+      return days.some((day) => cron.dayOfMonth.matches(day));
+    });
+    if (!hasPossibleDate) {
+      throw new Error(`Unable to compute next run time for cron expression: ${cadence.expression}`);
+    }
+  }
   // A skipped century leap year can put the next February 29 eight years away.
   const limit = 8 * 366 * 24 * 60;
   let cursor = startOfNextMinute(after);
